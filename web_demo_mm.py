@@ -258,7 +258,7 @@ def _launch_demo(args, model, processor):
         gr.Markdown("""<center><font size=8>Qwen2.5-VL</center>""")
         gr.Markdown("""\
 <center><font size=3>This WebUI is based on Qwen2.5-VL, developed by Alibaba Cloud.</center>""")
-        gr.Markdown("""<center><font size=3>本WebUI基于Qwen2.5-VL。</center>""")
+        gr.Markdown(f"""<center><font size=3>本WebUI基于Qwen2.5-VL @ {args.checkpoint_path}</center>""")
 
         chatbot = gr.Chatbot(label='Qwen2.5-VL', elem_classes='control-height', height=500,type="tuples")
         query = gr.Textbox(lines=2, label='Input')
