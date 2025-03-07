@@ -46,19 +46,21 @@ def _get_args():
 
 
 def _load_model_processor(args):
-    if args.cpu_only:
-        device_map = 'cpu'
-    else:
-        device_map = 'auto'
-
+    device_map = {
+        "": "cuda:0" if not args.cpu_only else "cpu"
+    }
+    
+    # 检查CUDA可用性
+    if not args.cpu_only and not torch.cuda.is_available():
+        raise RuntimeError("CUDA设备不可用，请添加--cpu-only参数运行")
     # Check if flash-attn2 flag is enabled and load model accordingly
+    torch_dtype=torch.bfloat16 if not args.cpu_only else torch.float32
     if args.flash_attn2:
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(args.checkpoint_path,
-                                                                torch_dtype='auto',
                                                                 attn_implementation='flash_attention_2',
-                                                                device_map=device_map)
+                                                                device_map=device_map,torch_dtype=torch_dtype)
     else:
-        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(args.checkpoint_path, device_map=device_map)
+        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(args.checkpoint_path, device_map=device_map,torch_dtype=torch_dtype)
 
     processor = AutoProcessor.from_pretrained(args.checkpoint_path)
     return model, processor
@@ -146,7 +148,8 @@ def _launch_demo(args, model, processor):
         inputs = inputs.to(model.device)
 
         tokenizer = processor.tokenizer
-        streamer = TextIteratorStreamer(tokenizer, timeout=20.0, skip_prompt=True, skip_special_tokens=True)
+        # streamer = TextIteratorStreamer(tokenizer, timeout=20.0, skip_prompt=True, skip_special_tokens=True)
+        streamer = TextIteratorStreamer(tokenizer, timeout=120.0, skip_prompt=True, skip_special_tokens=True)
 
         gen_kwargs = {'max_new_tokens': 512, 'streamer': streamer, **inputs}
 
@@ -155,6 +158,7 @@ def _launch_demo(args, model, processor):
 
         generated_text = ''
         for new_text in streamer:
+#            print('new_text',new_text)
             generated_text += new_text
             yield generated_text
 
@@ -222,15 +226,16 @@ def _launch_demo(args, model, processor):
     predict = create_predict_fn()
     regenerate = create_regenerate_fn()
 
-    def add_text(history, task_history, text):
+    def add_text2(history, task_history, text):
         task_text = text
         history = history if history is not None else []
         task_history = task_history if task_history is not None else []
         history = history + [(_parse_text(text), None)]
         task_history = task_history + [(task_text, None)]
-        return history, task_history, ''
+        # return history, task_history, ''
+        return history, task_history
 
-    def add_file(history, task_history, file):
+    def add_file2(history, task_history, file):
         history = history if history is not None else []
         task_history = task_history if task_history is not None else []
         history = history + [((file.name,), None)]
@@ -255,9 +260,12 @@ def _launch_demo(args, model, processor):
 <center><font size=3>This WebUI is based on Qwen2.5-VL, developed by Alibaba Cloud.</center>""")
         gr.Markdown("""<center><font size=3>本WebUI基于Qwen2.5-VL。</center>""")
 
-        chatbot = gr.Chatbot(label='Qwen2.5-VL', elem_classes='control-height', height=500)
+        chatbot = gr.Chatbot(label='Qwen2.5-VL', elem_classes='control-height', height=500,type="tuples")
         query = gr.Textbox(lines=2, label='Input')
         task_history = gr.State([])
+
+
+        
 
         with gr.Row():
             addfile_btn = gr.UploadButton('📁 Upload (上传文件)', file_types=['image', 'video'])
@@ -265,12 +273,12 @@ def _launch_demo(args, model, processor):
             regen_btn = gr.Button('🤔️ Regenerate (重试)')
             empty_bin = gr.Button('🧹 Clear History (清除历史)')
 
-        submit_btn.click(add_text, [chatbot, task_history, query],
+        submit_btn.click(add_text2, [chatbot, task_history, query],
                          [chatbot, task_history]).then(predict, [chatbot, task_history], [chatbot], show_progress=True)
         submit_btn.click(reset_user_input, [], [query])
         empty_bin.click(reset_state, [chatbot, task_history], [chatbot], show_progress=True)
         regen_btn.click(regenerate, [chatbot, task_history], [chatbot], show_progress=True)
-        addfile_btn.upload(add_file, [chatbot, task_history, addfile_btn], [chatbot, task_history], show_progress=True)
+        addfile_btn.upload(add_file2, [chatbot, task_history, addfile_btn], [chatbot, task_history], show_progress=True)
 
         gr.Markdown("""\
 <font size=2>Note: This demo is governed by the original license of Qwen2.5-VL. \
