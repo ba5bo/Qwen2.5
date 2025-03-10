@@ -12,6 +12,8 @@ import gradio as gr
 import torch
 from qwen_vl_utils import process_vision_info
 from transformers import AutoProcessor, Qwen2_5_VLForConditionalGeneration, TextIteratorStreamer
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 DEFAULT_CKPT_PATH = 'Qwen/Qwen2.5-VL-7B-Instruct'
 
@@ -40,6 +42,8 @@ def _get_args():
                         help='Automatically launch the interface in a new tab on the default browser.')
     parser.add_argument('--server-port', type=int, default=7860, help='Demo server port.')
     parser.add_argument('--server-name', type=str, default='127.0.0.1', help='Demo server name.')
+    parser.add_argument('--timeout', type=int, default=120, help='session timeout in seconds')
+    parser.add_argument('--max-new-words', type=int, default=512, help='session timeout in seconds')
 
     args = parser.parse_args()
     return args
@@ -149,9 +153,9 @@ def _launch_demo(args, model, processor):
 
         tokenizer = processor.tokenizer
         # streamer = TextIteratorStreamer(tokenizer, timeout=20.0, skip_prompt=True, skip_special_tokens=True)
-        streamer = TextIteratorStreamer(tokenizer, timeout=120.0, skip_prompt=True, skip_special_tokens=True)
+        streamer = TextIteratorStreamer(tokenizer, timeout=args.timeout, skip_prompt=True, skip_special_tokens=True)
 
-        gen_kwargs = {'max_new_tokens': 512, 'streamer': streamer, **inputs}
+        gen_kwargs = {'max_new_tokens': args.max_new_words, 'streamer': streamer, **inputs}
 
         thread = Thread(target=model.generate, kwargs=gen_kwargs)
         thread.start()
@@ -172,7 +176,7 @@ def _launch_demo(args, model, processor):
                 _chatbot.pop()
                 task_history.pop()
                 return _chatbot
-            print('User: ' + _parse_text(query))
+            logging.info('User: ' + _parse_text(query))
             history_cp = copy.deepcopy(task_history)
             full_response = ''
             messages = []
@@ -197,7 +201,7 @@ def _launch_demo(args, model, processor):
                 full_response = _parse_text(response)
 
             task_history[-1] = (query, full_response)
-            print('Qwen-VL-Chat: ' + _parse_text(full_response))
+            logging.info('Qwen-VL-Chat: ' + _parse_text(full_response))
             yield _chatbot
 
         return predict
