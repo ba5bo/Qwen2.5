@@ -9,6 +9,8 @@ git+https://github.com/huggingface/transformers.git
 accelerate
 autoawq>=0.1.8
 av
+optimum # for gptq quantitive
+auto-gptq #  gptqmodel may lead to GPU OOM ,  auto-gptq can use share video memory.
 
 # Optional dependency
 # Uncomment the following line if you need flash-attn
